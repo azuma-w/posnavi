@@ -1,146 +1,49 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#ffffff" />
-  <title>ポスナビ v0.6</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>ポスナビ v0.7</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="app-header">
-      <div class="header-copy">
-        <h1>ポスナビ</h1>
-        <p id="sessionStatus">配布は開始されていません</p>
-      </div>
-      <button id="sessionButton" class="primary">配布開始</button>
-    </header>
+<div id="app">
+  <header>
+    <button class="icon-btn" id="clearCurrentBtn" aria-label="今回の配布を全部消す">↺</button>
+    <div class="title-wrap"><h1>ポスナビ</h1><small id="sessionStatus">待機中</small></div>
+    <button class="session-btn" id="sessionBtn">配布開始</button>
+  </header>
 
-    <section class="search-bar">
-      <input id="searchInput" type="search" placeholder="住所・建物名・メモを検索" />
-      <button id="searchButton">検索</button>
-    </section>
-
-    <main class="map-stage">
-      <div id="map"></div>
-    </main>
-
-    <nav class="bottom-nav" aria-label="メインメニュー">
-      <button data-panel="registerPanel">住宅登録</button>
-      <button data-panel="masterPanel">住宅マスター</button>
-      <button data-panel="historyPanel">配布履歴</button>
-    </nav>
-  </div>
-
-  <section id="detailPanel" class="panel detail-panel" hidden>
-    <div class="panel-header">
-      <h2>詳細</h2>
-      <button class="close-panel">閉じる</button>
+  <main id="mapWrap">
+    <div id="map"></div>
+    <div id="modeBanner" class="mode-banner" hidden></div>
+    <div class="floating left">
+      <button class="fab" id="searchFab" aria-label="住所検索">⌕</button>
+      <button class="fab" id="locateFab" aria-label="現在地">◎</button>
     </div>
-    <div id="detailContent" class="panel-body"></div>
-  </section>
-
-  <section id="registerPanel" class="panel" hidden>
-    <div class="panel-header">
-      <h2>住宅登録・編集</h2>
-      <button class="close-panel">閉じる</button>
+    <div class="floating right">
+      <button class="fab menu-fab" id="moreFab" aria-label="詳細・メニュー">…</button>
     </div>
-    <div class="panel-body">
-      <form id="houseForm">
-        <input type="hidden" id="houseId" />
+  </main>
 
-        <label>住所・建物名
-          <input id="houseAddress" required placeholder="例：札幌市豊平区福住1条1丁目" />
-        </label>
+  <footer class="stats">
+    <div class="stat"><small>今日の配布数</small><strong id="todayCount">0部</strong></div>
+    <div class="stat"><small>配布済み</small><strong id="doneCount">0件</strong></div>
+    <div class="stat"><small>登録物件</small><strong id="houseCount">0件</strong></div>
+  </footer>
+</div>
 
-        <div class="two-columns">
-          <label>緯度
-            <input id="houseLat" type="number" step="any" required />
-          </label>
-          <label>経度
-            <input id="houseLng" type="number" step="any" required />
-          </label>
-        </div>
+<div class="backdrop" id="backdrop" hidden></div>
+<section class="sheet" id="sheet" aria-modal="true" hidden>
+  <div class="sheet-head"><h2 id="sheetTitle">メニュー</h2><button class="close" id="closeSheet">×</button></div>
+  <div class="sheet-body" id="sheetBody"></div>
+</section>
 
-        <label>基本の配布部数
-          <input id="defaultCopies" type="number" min="0" value="1" required />
-        </label>
+<div class="toast" id="toast" hidden><span id="toastText"></span><button id="undoBtn" hidden>取り消す</button></div>
 
-        <label>区分
-          <select id="houseType">
-            <option value="house">戸建て</option>
-            <option value="apartment">集合住宅</option>
-            <option value="company">会社・店舗</option>
-            <option value="other">その他</option>
-          </select>
-        </label>
-
-        <label>状態
-          <select id="houseStatus">
-            <option value="normal">通常</option>
-            <option value="no-posting">配布不可</option>
-            <option value="caution">要注意</option>
-            <option value="multi">複数部予定</option>
-          </select>
-        </label>
-
-        <label>メモ
-          <textarea id="houseMemo" rows="3" placeholder="例：チラシお断り、会社受付に3部、前回20部など"></textarea>
-        </label>
-
-        <div class="form-actions">
-          <button type="button" id="useMapCenter">地図中央を使う</button>
-          <button type="submit" class="primary">保存</button>
-        </div>
-        <button type="button" id="deleteHouse" class="danger" hidden>この住宅を削除</button>
-      </form>
-    </div>
-  </section>
-
-  <section id="masterPanel" class="panel" hidden>
-    <div class="panel-header">
-      <h2>住宅マスター</h2>
-      <button class="close-panel">閉じる</button>
-    </div>
-    <div id="masterList" class="list panel-body"></div>
-  </section>
-
-  <section id="historyPanel" class="panel" hidden>
-    <div class="panel-header">
-      <h2>配布履歴</h2>
-      <button class="close-panel">閉じる</button>
-    </div>
-    <div class="panel-body">
-      <div class="filters">
-        <input id="historyDate" type="date" />
-        <input id="historyArea" placeholder="エリアで絞り込み" />
-        <button id="clearHistoryFilter">解除</button>
-      </div>
-      <div id="historyList" class="list"></div>
-    </div>
-  </section>
-
-  <dialog id="sessionDialog">
-    <form method="dialog" id="sessionForm">
-      <h2>配布開始</h2>
-      <label>配布物
-        <input id="sessionFlyer" placeholder="例：満腹米チラシ" />
-      </label>
-      <div class="dialog-actions">
-        <button value="cancel">キャンセル</button>
-        <button value="default" class="primary">開始する</button>
-      </div>
-    </form>
-  </dialog>
-
-  <div id="toast" aria-live="polite">
-    <span id="toastMessage"></span>
-    <button id="undoButton" hidden>取り消す</button>
-  </div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
