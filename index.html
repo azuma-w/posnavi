@@ -3,87 +3,100 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>ポスナビ v0.5</title>
+  <meta name="theme-color" content="#ffffff" />
+  <title>ポスナビ v0.6</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="app-header">
-    <div>
-      <h1>ポスナビ</h1>
-      <p id="sessionStatus">配布は開始されていません</p>
-    </div>
-    <button id="sessionButton" class="primary">配布開始</button>
-  </header>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-copy">
+        <h1>ポスナビ</h1>
+        <p id="sessionStatus">配布は開始されていません</p>
+      </div>
+      <button id="sessionButton" class="primary">配布開始</button>
+    </header>
 
-  <section class="search-bar">
-    <input id="searchInput" type="search" placeholder="住所・建物名・メモを検索" />
-    <button id="searchButton">検索</button>
-  </section>
+    <section class="search-bar">
+      <input id="searchInput" type="search" placeholder="住所・建物名・メモを検索" />
+      <button id="searchButton">検索</button>
+    </section>
 
-  <main>
-    <div id="map"></div>
+    <main class="map-stage">
+      <div id="map"></div>
+    </main>
 
-    <nav class="bottom-nav">
+    <nav class="bottom-nav" aria-label="メインメニュー">
       <button data-panel="registerPanel">住宅登録</button>
       <button data-panel="masterPanel">住宅マスター</button>
       <button data-panel="historyPanel">配布履歴</button>
     </nav>
-  </main>
+  </div>
+
+  <section id="detailPanel" class="panel detail-panel" hidden>
+    <div class="panel-header">
+      <h2>詳細</h2>
+      <button class="close-panel">閉じる</button>
+    </div>
+    <div id="detailContent" class="panel-body"></div>
+  </section>
 
   <section id="registerPanel" class="panel" hidden>
     <div class="panel-header">
-      <h2>住宅登録</h2>
+      <h2>住宅登録・編集</h2>
       <button class="close-panel">閉じる</button>
     </div>
-    <form id="houseForm">
-      <input type="hidden" id="houseId" />
+    <div class="panel-body">
+      <form id="houseForm">
+        <input type="hidden" id="houseId" />
 
-      <label>住所・建物名
-        <input id="houseAddress" required placeholder="例：札幌市豊平区福住1条1丁目" />
-      </label>
-
-      <div class="two-columns">
-        <label>緯度
-          <input id="houseLat" type="number" step="any" required />
+        <label>住所・建物名
+          <input id="houseAddress" required placeholder="例：札幌市豊平区福住1条1丁目" />
         </label>
-        <label>経度
-          <input id="houseLng" type="number" step="any" required />
+
+        <div class="two-columns">
+          <label>緯度
+            <input id="houseLat" type="number" step="any" required />
+          </label>
+          <label>経度
+            <input id="houseLng" type="number" step="any" required />
+          </label>
+        </div>
+
+        <label>基本の配布部数
+          <input id="defaultCopies" type="number" min="0" value="1" required />
         </label>
-      </div>
 
-      <label>基本の配布部数
-        <input id="defaultCopies" type="number" min="0" value="1" required />
-      </label>
+        <label>区分
+          <select id="houseType">
+            <option value="house">戸建て</option>
+            <option value="apartment">集合住宅</option>
+            <option value="company">会社・店舗</option>
+            <option value="other">その他</option>
+          </select>
+        </label>
 
-      <label>区分
-        <select id="houseType">
-          <option value="house">戸建て</option>
-          <option value="apartment">集合住宅</option>
-          <option value="company">会社・店舗</option>
-          <option value="other">その他</option>
-        </select>
-      </label>
+        <label>状態
+          <select id="houseStatus">
+            <option value="normal">通常</option>
+            <option value="no-posting">配布不可</option>
+            <option value="caution">要注意</option>
+            <option value="multi">複数部予定</option>
+          </select>
+        </label>
 
-      <label>状態
-        <select id="houseStatus">
-          <option value="normal">通常</option>
-          <option value="no-posting">配布不可</option>
-          <option value="caution">要注意</option>
-          <option value="multi">複数部予定</option>
-        </select>
-      </label>
+        <label>メモ
+          <textarea id="houseMemo" rows="3" placeholder="例：チラシお断り、会社受付に3部、前回20部など"></textarea>
+        </label>
 
-      <label>メモ
-        <textarea id="houseMemo" rows="3" placeholder="例：チラシお断り、会社受付に3部、前回20部など"></textarea>
-      </label>
-
-      <div class="form-actions">
-        <button type="button" id="useMapCenter">地図中央を使う</button>
-        <button type="submit" class="primary">保存</button>
-      </div>
-      <button type="button" id="deleteHouse" class="danger" hidden>この住宅を削除</button>
-    </form>
+        <div class="form-actions">
+          <button type="button" id="useMapCenter">地図中央を使う</button>
+          <button type="submit" class="primary">保存</button>
+        </div>
+        <button type="button" id="deleteHouse" class="danger" hidden>この住宅を削除</button>
+      </form>
+    </div>
   </section>
 
   <section id="masterPanel" class="panel" hidden>
@@ -91,7 +104,7 @@
       <h2>住宅マスター</h2>
       <button class="close-panel">閉じる</button>
     </div>
-    <div id="masterList" class="list"></div>
+    <div id="masterList" class="list panel-body"></div>
   </section>
 
   <section id="historyPanel" class="panel" hidden>
@@ -99,12 +112,14 @@
       <h2>配布履歴</h2>
       <button class="close-panel">閉じる</button>
     </div>
-    <div class="filters">
-      <input id="historyDate" type="date" />
-      <input id="historyArea" placeholder="エリアで絞り込み" />
-      <button id="clearHistoryFilter">解除</button>
+    <div class="panel-body">
+      <div class="filters">
+        <input id="historyDate" type="date" />
+        <input id="historyArea" placeholder="エリアで絞り込み" />
+        <button id="clearHistoryFilter">解除</button>
+      </div>
+      <div id="historyList" class="list"></div>
     </div>
-    <div id="historyList" class="list"></div>
   </section>
 
   <dialog id="sessionDialog">
@@ -115,12 +130,15 @@
       </label>
       <div class="dialog-actions">
         <button value="cancel">キャンセル</button>
-        <button id="startSessionConfirm" value="default" class="primary">開始する</button>
+        <button value="default" class="primary">開始する</button>
       </div>
     </form>
   </dialog>
 
-  <div id="toast" aria-live="polite"></div>
+  <div id="toast" aria-live="polite">
+    <span id="toastMessage"></span>
+    <button id="undoButton" hidden>取り消す</button>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
