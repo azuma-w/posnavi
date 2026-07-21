@@ -175,3 +175,8 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
   .panel { left: auto; width: 430px; max-height: calc(100vh - 30px); right: 14px; bottom: 14px; border-radius: 18px; }
   .bottom-nav { width: 430px; left: 50%; transform: translateX(-50%); border: 1px solid #ccc; border-bottom: 0; border-radius: 14px 14px 0 0; }
 }
+
+.marker-session {
+  background: #2e7d32;
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, .18), 0 1px 4px rgba(0,0,0,.35);
+}

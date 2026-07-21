@@ -8,7 +8,8 @@ const state = {
   houses: load(STORAGE_KEYS.houses, []),
   sessions: load(STORAGE_KEYS.sessions, []),
   currentSession: load(STORAGE_KEYS.currentSession, null),
-  markers: new Map()
+  markers: new Map(),
+  sessionMarkers: new Map()
 };
 
 const map = L.map('map').setView([43.0308, 141.4029], 15);
@@ -87,15 +88,36 @@ function createIcon(house) {
   });
 }
 
+function createSessionIcon(entry) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="marker-label marker-session">${entry.copies}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
+  });
+}
+
 function renderMarkers() {
   state.markers.forEach(marker => marker.remove());
   state.markers.clear();
+  state.sessionMarkers.forEach(marker => marker.remove());
+  state.sessionMarkers.clear();
 
   for (const house of state.houses) {
     const marker = L.marker([house.lat, house.lng], { icon: createIcon(house) }).addTo(map);
     marker.bindTooltip(house.address || '登録住宅');
     marker.on('click', () => handleHouseClick(house));
     state.markers.set(house.id, marker);
+  }
+
+  if (!state.currentSession) return;
+
+  for (const entry of Object.values(state.currentSession.entries || {})) {
+    if (entry.houseId || !Number.isFinite(entry.lat) || !Number.isFinite(entry.lng)) continue;
+    const marker = L.marker([entry.lat, entry.lng], { icon: createSessionIcon(entry) }).addTo(map);
+    marker.bindTooltip(`${entry.copies}部`);
+    marker.on('click', () => incrementFreeEntry(entry.id));
+    state.sessionMarkers.set(entry.id, marker);
   }
 }
 
@@ -111,19 +133,55 @@ function handleHouseClick(house) {
   }
 
   const existing = state.currentSession.entries[house.id];
-  const copies = existing ? existing.copies + (house.defaultCopies || 1) : (house.defaultCopies || 1);
+  const step = house.defaultCopies || 1;
+  const copies = existing ? existing.copies + step : step;
 
   state.currentSession.entries[house.id] = {
+    id: house.id,
     houseId: house.id,
     address: house.address,
+    lat: house.lat,
+    lng: house.lng,
     copies,
     updatedAt: new Date().toISOString()
   };
 
+  persistCurrentSession();
+  showToast(`${house.address}：${copies}部`);
+}
+
+function incrementFreeEntry(id) {
+  if (!state.currentSession) return;
+  const entry = state.currentSession.entries[id];
+  if (!entry) return;
+  entry.copies += 1;
+  entry.updatedAt = new Date().toISOString();
+  persistCurrentSession();
+  showToast(`${entry.copies}部`);
+}
+
+map.on('click', (event) => {
+  if (!state.currentSession) return;
+
+  const id = uid('spot');
+  state.currentSession.entries[id] = {
+    id,
+    houseId: null,
+    address: '地図上の配布地点',
+    lat: Number(event.latlng.lat),
+    lng: Number(event.latlng.lng),
+    copies: 1,
+    updatedAt: new Date().toISOString()
+  };
+
+  persistCurrentSession();
+  showToast('1部を記録しました');
+});
+
+function persistCurrentSession() {
   save(STORAGE_KEYS.currentSession, state.currentSession);
   renderMarkers();
   updateSessionUI();
-  showToast(`${house.address}：${copies}部`);
 }
 
 function updateSessionUI() {
@@ -134,10 +192,10 @@ function updateSessionUI() {
     return;
   }
 
-  const total = Object.values(state.currentSession.entries)
+  const total = Object.values(state.currentSession.entries || {})
     .reduce((sum, entry) => sum + Number(entry.copies || 0), 0);
 
-  sessionStatus.textContent = `${state.currentSession.area}｜${total}部｜開始 ${formatDateTime(state.currentSession.startedAt)}`;
+  sessionStatus.textContent = `${total}部｜開始 ${formatDateTime(state.currentSession.startedAt)}`;
   sessionButton.textContent = '配布終了';
 }
 
@@ -151,12 +209,10 @@ sessionButton.addEventListener('click', () => {
 
 sessionForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  const area = document.getElementById('sessionArea').value.trim();
-  if (!area) return;
 
   state.currentSession = {
     id: uid('session'),
-    area,
+    area: '未設定エリア',
     flyer: document.getElementById('sessionFlyer').value.trim(),
     startedAt: new Date().toISOString(),
     endedAt: null,
@@ -172,9 +228,9 @@ sessionForm.addEventListener('submit', (event) => {
 });
 
 function finishSession() {
-  const entries = Object.values(state.currentSession.entries);
+  const entries = Object.values(state.currentSession.entries || {});
   const total = entries.reduce((sum, e) => sum + Number(e.copies || 0), 0);
-  const ok = confirm(`${state.currentSession.area}の配布を終了しますか？\n配布部数：${total}部`);
+  const ok = confirm(`配布を終了しますか？\n配布部数：${total}部`);
   if (!ok) return;
 
   const finished = {
@@ -328,7 +384,7 @@ function renderHistory() {
 
   const sessions = state.sessions.filter(session => {
     const dateOk = !date || todayText(session.startedAt) === date;
-    const areaOk = !area || session.area.toLowerCase().includes(area);
+    const areaOk = !area || (session.area || '').toLowerCase().includes(area);
     return dateOk && areaOk;
   });
 
@@ -339,13 +395,13 @@ function renderHistory() {
 
   list.innerHTML = sessions.map(session => `
     <article class="card">
-      <h3>${escapeHtml(session.area)}</h3>
+      <h3>${escapeHtml(session.area || '未設定エリア')}</h3>
       <p>${formatDateTime(session.startedAt)} ～ ${formatDateTime(session.endedAt)}</p>
       <p>配布物：${escapeHtml(session.flyer || '-')}</p>
       <p>配布部数：${session.totalCopies || 0}部／訪問：${session.visitedCount || 0}件</p>
       <details>
         <summary>配布先を見る</summary>
-        ${Object.values(session.entries || {}).map(entry => `<p>${escapeHtml(entry.address)}：${entry.copies}部</p>`).join('') || '<p>記録なし</p>'}
+        ${Object.values(session.entries || {}).map(entry => `<p>${escapeHtml(entry.address || '地図上の配布地点')}：${entry.copies}部</p>`).join('') || '<p>記録なし</p>'}
       </details>
     </article>
   `).join('');
@@ -364,64 +420,19 @@ document.getElementById('searchInput').addEventListener('keydown', event => {
   if (event.key === 'Enter') runSearch();
 });
 
-async function runSearch() {
+function runSearch() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
-
-  const local = state.houses.find(house =>
-    `${house.address} ${house.memo || ''}`.toLowerCase().includes(q.toLowerCase())
-  );
-
-  if (local) {
-    map.setView([local.lat, local.lng], 18);
-    state.markers.get(local.id)?.openTooltip();
-    showToast('登録済みの場所を表示しました');
-    return;
-  }
-
-  try {
-    const url = new URL('https://nominatim.openstreetmap.org/search');
-    url.searchParams.set('format', 'json');
-    url.searchParams.set('limit', '1');
-    url.searchParams.set('countrycodes', 'jp');
-    url.searchParams.set('q', q);
-
-    const response = await fetch(url, {
-      headers: { 'Accept-Language': 'ja' }
-    });
-    if (!response.ok) throw new Error('検索に失敗しました');
-
-    const results = await response.json();
-    if (!results.length) {
-      showToast('住所が見つかりませんでした');
-      return;
-    }
-
-    const result = results[0];
-    map.setView([Number(result.lat), Number(result.lon)], 18);
-    showToast('検索した住所へ移動しました');
-  } catch (error) {
-    console.error(error);
-    showToast('住所検索でエラーが発生しました');
-  }
+  renderMaster(q);
+  openPanel('masterPanel');
 }
 
 function statusLabel(value) {
-  return {
-    normal: '通常',
-    'no-posting': '配布不可',
-    caution: '要注意',
-    multi: '複数部予定'
-  }[value] || value;
+  return ({ normal: '通常', 'no-posting': '配布不可', caution: '要注意', multi: '複数部予定' })[value] || value;
 }
 
 function typeLabel(value) {
-  return {
-    house: '戸建て',
-    apartment: '集合住宅',
-    company: '会社・店舗',
-    other: 'その他'
-  }[value] || value;
+  return ({ house: '戸建て', apartment: '集合住宅', company: '会社・店舗', other: 'その他' })[value] || value;
 }
 
 function escapeHtml(value) {
@@ -433,14 +444,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-map.on('contextmenu', event => {
-  prepareNewHouse();
-  document.getElementById('houseLat').value = event.latlng.lat.toFixed(6);
-  document.getElementById('houseLng').value = event.latlng.lng.toFixed(6);
-  openPanel('registerPanel');
-});
-
 updateSessionUI();
 renderMarkers();
-renderMaster();
 renderHistory();
